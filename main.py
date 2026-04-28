@@ -48,20 +48,9 @@ COLUMN_ALIASES = {
     "Bairro": ["bairro", "district", "neighborhood", "region"],
 }
 
-MANAUS_BAIRROS = [
-    "Adrianopolis",
-    "Vieiralves",
-    "Ponta Negra",
-    "Centro",
-    "Flores",
-    "Cachoeirinha",
-    "Cidade Nova",
-    "Dom Pedro",
-    "Parque Dez",
-    "Aleixo",
-]
+MANAUS_BAIRROS: List[str] = []
 
-app = FastAPI(title="Dashboard de Prospeccao - Manaus")
+app = FastAPI(title="Dashboard de Prospeccao Local")
 
 app.add_middleware(
     CORSMiddleware,
@@ -129,7 +118,7 @@ def build_restaurant_report_pdf(restaurant: Dict[str, Any]) -> io.BytesIO:
     pdf = canvas.Canvas(buffer, pagesize=A4)
     y = write_pdf_header(
         pdf,
-        title=f"Relatorio de Presenca Digital - {restaurant.get('nome', 'Restaurante')}",
+        title=f"Relatorio de Presenca Digital - {restaurant.get('nome', 'Negocio')}",
         subtitle=f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}",
     )
 
@@ -392,13 +381,13 @@ def extract_bairro_from_address(address: str) -> str:
     if not address:
         return ""
 
-    match = re.search(r"-\s*([^,]+),\s*Manaus(?:\s*-\s*AM)?", str(address), flags=re.IGNORECASE)
+    match = re.search(r"-\s*([^,]+),\s*[A-Z][a-zA-Z\s]+(?:\s*-\s*[A-Z]{2})?", str(address), flags=re.IGNORECASE)
     if match:
         return match.group(1).strip()
 
     parts = [part.strip() for part in str(address).split(",") if part.strip()]
     for part in reversed(parts):
-        if part.lower() in {"manaus", "amazonas", "brasil", "am"}:
+        if part.lower() in {"amazonas", "brasil", "am", "sp", "rj", "mg", "pr", "rs", "ba", "ce", "pe"}:
             continue
         if re.search(r"\d{5}-?\d{3}", part):
             continue
@@ -543,7 +532,7 @@ def check_website_status(url: str) -> Dict[str, Any]:
             "status_code": None,
             "mobile_friendly": False,
             "score": 0,
-            "pitch": "Seu restaurante pode aumentar pedidos com um site rapido, responsivo e integrado ao WhatsApp.",
+            "pitch": "Seu negocio pode ampliar o alcance e captar mais clientes com um site rapido, responsivo e integrado ao WhatsApp.",
         }
 
     normalized_url = url.strip()
@@ -580,8 +569,9 @@ def check_website_status(url: str) -> Dict[str, Any]:
     pitch = ""
     if score < 50:
         pitch = (
-            "Seu restaurante tem potencial de vendas maior: um novo site mobile-first, com cardapio claro e CTA no WhatsApp, "
-            "pode converter mais visitas em pedidos."
+            "Seu negocio tem potencial de crescimento: um site mobile-first, "
+            "com chamada clara para acao e integrado ao WhatsApp, "
+            "pode converter mais visitas em contatos e vendas."
         )
 
     return {
@@ -604,7 +594,7 @@ def fetch_serper_maps_snapshot(name: str, bairro: str) -> Dict[str, Any]:
             "reviews": None,
         }
 
-    query = f"{name} {bairro} Manaus restaurante"
+    query = f"{name} {bairro}"
     url = "https://google.serper.dev/maps"
     headers = {"X-API-KEY": api_key, "Content-Type": "application/json"}
     payload = {"q": query, "hl": "pt", "gl": "br"}
@@ -655,16 +645,16 @@ def gmn_diagnostics(stars: float, reviews: int) -> Dict[str, Any]:
 
     improvements: List[str] = []
     if stars < 4.2:
-        improvements.append("Criar rotina de pedido de feedback no pos-venda para elevar nota media.")
+        improvements.append("Criar rotina de pedido de feedback no pos-atendimento para elevar nota media.")
     if reviews < 80:
-        improvements.append("Aumentar volume de avaliacoes com QR Code em mesa e delivery.")
+        improvements.append("Aumentar volume de avaliacoes com QR Code no balcao ou pos-venda via WhatsApp.")
     if reviews > 0 and stars >= 4.2:
-        improvements.append("Destacar pratos campeoes em fotos profissionais no perfil do Google.")
+        improvements.append("Destacar os diferenciais do negocio com fotos profissionais no perfil do Google.")
     if response_rate != "Alta":
         improvements.append("Responder avaliacoes em ate 24h para melhorar confianca e ranqueamento local.")
 
     while len(improvements) < 3:
-        improvements.append("Atualizar descricao do GMN com termos locais e bairros de atendimento em Manaus.")
+        improvements.append("Atualizar descricao do GMN com termos relevantes e regioes de atendimento.")
 
     return {
         "ranking_score": max(0, min(100, ranking_score)),
@@ -703,21 +693,24 @@ def build_whatsapp_pitch(name: str, bairro: str, stars: float, website: str, sit
     bairro_text = bairro or "sua regiao"
     if is_third_party_menu_link(website):
         intro = (
-            f"Opa, tudo bem? Vi que voces sao referencia em cafe aqui no {bairro_text}, "
-            "mas notei que voces ainda usam link de terceiros (tipo MenuDino/Goomer) no Instagram."
+            f"Opa, tudo bem? Vi que o {name} tem presenca online em {bairro_text}, "
+            "mas notei que voces ainda usam link de plataforma de terceiros para o cliente te achar."
+        )
+    elif not website:
+        intro = (
+            f"Opa, tudo bem? Vi que o {name} ainda nao tem um site proprio em {bairro_text}."
         )
     else:
         intro = (
-            f"Opa, tudo bem? Vi que voces sao referencia em cafe aqui no {bairro_text}, "
-            "mas notei que o link atual de voces no Instagram ainda depende de plataforma de terceiros."
+            f"Opa, tudo bem? Vi o {name} em {bairro_text} "
+            "e fiz uma analise rapida da presenca digital de voces."
         )
 
     return (
         f"{intro} "
-        "Como eu sou programador, fiz um scan tecnico e vi que esse link atual esta 'escondendo' voces do Google. "
-        "Quem busca por cafe na regiao acaba caindo na concorrencia porque o link de voces nao ranqueia. "
-        "Eu desenvolvo sites de alta conversao que sao seus, sem taxas, e que colocam voces no topo das buscas em Manaus. "
-        "Bora transformar esse cardapio numa maquina de vendas de verdade?"
+        "Como desenvolvedor, identifiquei que a visibilidade de voces no Google pode ser muito maior. "
+        "Desenvolvo sites e ferramentas que sao seus, sem taxas mensais, e que colocam voces no topo das buscas locais. "
+        "Bora conversar sobre como posso aumentar os contatos e vendas de voces?"
     )
 
 
@@ -735,10 +728,10 @@ def ai_enrich_restaurant(
         "provider": "rule-based",
         "improvements": [
             "Padronizar respostas de avaliacoes em ate 24h para melhorar visibilidade local.",
-            "Publicar fotos reais de pratos e ambiente 2x por semana no perfil Google.",
-            "Criar campanha de incentivo a reviews via WhatsApp pos-entrega.",
+            "Publicar fotos e conteudo do negocio 2x por semana no perfil Google.",
+            "Criar campanha de incentivo a reviews via WhatsApp pos-atendimento.",
         ],
-        "site_pitch": "Um site rapido e mobile-first pode aumentar conversoes de delivery e reservas.",
+        "site_pitch": "Um site rapido e mobile-first pode aumentar contatos, conversoes e visibilidade local.",
         "whatsapp_message": build_whatsapp_pitch(
             name=name,
             bairro=bairro,
@@ -755,7 +748,7 @@ def ai_enrich_restaurant(
         return default_result
 
     prompt = (
-        "Voce e consultor de SEO local e vendas B2B para restaurantes de Manaus. "
+        "Voce e consultor de SEO local e vendas B2B para negocios locais. "
         "Retorne apenas JSON valido com as chaves: improvements (array com 3 strings curtas), "
         "site_pitch (string), whatsapp_message (string persuasiva, ate 280 caracteres). "
         "Considere estes dados: "
@@ -941,7 +934,7 @@ def list_bairros() -> Dict[str, Any]:
 def ai_suggestion(restaurant_id: int) -> Dict[str, Any]:
     target = next((item for item in RESTAURANTS_CACHE if item["id"] == restaurant_id), None)
     if not target:
-        raise HTTPException(status_code=404, detail="Restaurante nao encontrado")
+        raise HTTPException(status_code=404, detail="Registro nao encontrado")
 
     openai_key = os.getenv("OPENAI_API_KEY")
     serper_key = os.getenv("SERPER_API_KEY")
@@ -976,10 +969,10 @@ def ai_suggestion(restaurant_id: int) -> Dict[str, Any]:
 def generate_restaurant_report(restaurant_id: int) -> StreamingResponse:
     target = next((item for item in RESTAURANTS_CACHE if item["id"] == restaurant_id), None)
     if not target:
-        raise HTTPException(status_code=404, detail="Restaurante nao encontrado")
+        raise HTTPException(status_code=404, detail="Registro nao encontrado")
 
     pdf_buffer = build_restaurant_report_pdf(target)
-    filename = slugify_filename(target.get("nome", "restaurante"))
+    filename = slugify_filename(target.get("nome", "negocio"))
     headers = {"Content-Disposition": f'attachment; filename="relatorio-{filename}.pdf"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
@@ -989,10 +982,10 @@ def generate_portfolio_report(bairro: Optional[str] = Query(default=None)) -> St
     target = filter_restaurants_by_bairro(bairro)
 
     if not target:
-        raise HTTPException(status_code=404, detail="Nenhum restaurante encontrado para gerar relatorio")
+        raise HTTPException(status_code=404, detail="Nenhum registro encontrado para gerar relatorio")
 
     pdf_buffer = build_portfolio_report_pdf(target, bairro=bairro)
-    label = slugify_filename(bairro) if bairro else "manaus"
+    label = slugify_filename(bairro) if bairro else "todos"
     headers = {"Content-Disposition": f'attachment; filename="relatorio-consolidado-{label}.pdf"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
@@ -1001,9 +994,9 @@ def generate_portfolio_report(bairro: Optional[str] = Query(default=None)) -> St
 def export_contacts_csv(bairro: Optional[str] = Query(default=None)) -> StreamingResponse:
     target = filter_restaurants_by_bairro(bairro)
     if not target:
-        raise HTTPException(status_code=404, detail="Nenhum restaurante encontrado para exportar contatos")
+        raise HTTPException(status_code=404, detail="Nenhum registro encontrado para exportar contatos")
 
     csv_buffer = build_contacts_export_csv(target)
-    label = slugify_filename(bairro) if bairro else "manaus"
+    label = slugify_filename(bairro) if bairro else "todos"
     headers = {"Content-Disposition": f'attachment; filename="cadencia-contatos-{label}.csv"'}
     return StreamingResponse(csv_buffer, media_type="text/csv", headers=headers)

@@ -13,6 +13,7 @@ export default function App() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingContacts, setDownloadingContacts] = useState(false);
   const [error, setError] = useState("");
+  const [segmento, setSegmento] = useState("");
 
   const filteredRestaurants = useMemo(() => {
     if (selectedBairro === "Todos") return restaurants;
@@ -68,6 +69,10 @@ export default function App() {
       setRestaurants(payload.data || []);
       setBairros(["Todos", ...(payload.bairros || [])]);
       setSelectedBairro("Todos");
+      if (file?.name) {
+        const raw = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+        setSegmento(raw);
+      }
     } catch (err) {
       setError(err.message || "Erro inesperado no upload.");
     } finally {
@@ -173,9 +178,11 @@ export default function App() {
                 <BarChart3 size={14} />
                 Dashboard de Prospeccao Local
               </div>
-              <h1 className="text-2xl font-bold text-white sm:text-3xl">Restaurantes de Manaus</h1>
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">
+                {segmento ? segmento : "Prospecção de Negócios"}
+              </h1>
               <p className="mt-2 text-sm text-slate-300">
-                Analise de Site, Google Meu Negocio e Contato para identificar oportunidades comerciais.
+                Análise de Site, Google Meu Negócio e Contato para identificar oportunidades comerciais.
               </p>
             </div>
 
